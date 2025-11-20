@@ -22,6 +22,7 @@ export default function Home() {
     setCurrentTranscription,
     setCurrentResponse,
     setAudioUrl,
+    setVideoUrl,
     setError,
   } = useAppStore();
 
@@ -66,6 +67,14 @@ export default function Home() {
           setAudioUrl(audioUrl);
           break;
 
+        case 'video_response':
+          // Wav2Lip 비디오 응답
+          const videoBase64 = message.data.video;
+          const videoBlob = base64ToBlob(videoBase64, 'video/mp4');
+          const videoUrl = URL.createObjectURL(videoBlob);
+          setVideoUrl(videoUrl);
+          break;
+
         case 'processing':
           // 처리 단계 업데이트
           const stage = message.data.stage;
@@ -96,6 +105,7 @@ export default function Home() {
       setCurrentTranscription,
       setCurrentResponse,
       setAudioUrl,
+      setVideoUrl,
       setError,
     ]
   );

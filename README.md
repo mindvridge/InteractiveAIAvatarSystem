@@ -209,7 +209,8 @@ OLLAMA_MODEL=llama2
    - 🎤 **STT**: 음성을 텍스트로 변환
    - 🤖 **LLM**: AI가 응답 생성
    - 🔊 **TTS**: 텍스트를 음성으로 변환
-   - 아바타가 음성과 함께 응답 표시
+   - 🎬 **Lipsync**: 립싱크 비디오 생성 (Phase 2)
+   - 아바타가 립싱크와 함께 응답 표시
 
 ## 🏗️ 프로젝트 구조
 
@@ -224,7 +225,10 @@ InteractiveAIAvatarSystem/
 │   │   │   ├── config.py        # 설정 관리
 │   │   │   ├── stt_service.py   # STT (Whisper)
 │   │   │   ├── tts_service.py   # TTS (Coqui)
-│   │   │   └── llm_service.py   # LLM (Ollama/OpenAI)
+│   │   │   ├── llm_service.py   # LLM (Ollama/OpenAI)
+│   │   │   └── wav2lip_service.py   # Wav2Lip (립싱크) - Phase 2
+│   │   ├── utils/               # 유틸리티
+│   │   │   └── video_utils.py   # 비디오 스트리밍
 │   │   └── models/              # 데이터 모델
 │   ├── requirements.txt
 │   └── Dockerfile
@@ -326,15 +330,21 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 - [x] Coqui TTS 통합
 - [x] Frontend 기본 UI
 
-### Phase 2: 립싱크 아바타 (예정)
-- [ ] Wav2Lip 모델 통합
-- [ ] 정적 아바타 이미지 → 립싱크 비디오
-- [ ] 비디오 스트리밍 파이프라인
+### Phase 2: 립싱크 아바타 ✅
+- [x] Wav2Lip 서비스 통합
+- [x] Mock 서비스 폴백
+- [x] 정적 아바타 이미지 → 립싱크 비디오
+- [x] 비디오 스트리밍 파이프라인
+- [x] Frontend 비디오 플레이어
+- [x] 오디오-비디오 동기화
 
 ### Phase 3: 실시간 최적화 (예정)
 - [ ] WebRTC 전환
 - [ ] 청크 단위 실시간 처리
 - [ ] 레이턴시 최적화 (< 2초 목표)
+- [ ] 다중 아바타 지원
+
+**📚 Phase 2 상세 가이드**: [PHASE2_GUIDE.md](PHASE2_GUIDE.md) 참조
 
 ## 🤝 기여
 

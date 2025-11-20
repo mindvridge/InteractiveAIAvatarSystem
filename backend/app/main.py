@@ -77,12 +77,14 @@ async def root() -> Dict[str, Any]:
     """
     return {
         "message": "Interactive AI Avatar System API",
-        "version": "0.1.0",
+        "version": "0.2.0",  # Phase 2
         "status": "running",
+        "phase": "2",
         "services": {
             "stt": ws_handler.stt_service is not None,
             "tts": ws_handler.tts_service is not None,
             "llm": ws_handler.llm_service is not None,
+            "wav2lip": ws_handler.wav2lip_service is not None,  # Phase 2
         }
     }
 
