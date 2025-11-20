@@ -13,6 +13,7 @@ import asyncio
 
 from app.websocket.handler import WebSocketHandler
 from app.services.config import get_settings
+from app.services.webrtc_service import signaling_service
 
 # 로깅 설정
 logging.basicConfig(
@@ -77,14 +78,16 @@ async def root() -> Dict[str, Any]:
     """
     return {
         "message": "Interactive AI Avatar System API",
-        "version": "0.2.0",  # Phase 2
+        "version": "0.3.0",  # Phase 3
         "status": "running",
-        "phase": "2",
+        "phase": "3",
+        "features": ["WebSocket", "WebRTC", "Lipsync"],
         "services": {
             "stt": ws_handler.stt_service is not None,
             "tts": ws_handler.tts_service is not None,
             "llm": ws_handler.llm_service is not None,
-            "wav2lip": ws_handler.wav2lip_service is not None,  # Phase 2
+            "wav2lip": ws_handler.wav2lip_service is not None,
+            "webrtc": True,  # Phase 3
         }
     }
 
@@ -120,6 +123,66 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         await ws_handler.cleanup_connection(websocket)
         logger.info(f"🔌 WebSocket connection closed: {websocket.client}")
+
+
+@app.websocket("/webrtc")
+async def webrtc_signaling_endpoint(websocket: WebSocket):
+    """
+    WebRTC Signaling 엔드포인트 - Phase 3
+
+    P2P 연결 설정을 위한 시그널링 서버
+    """
+    await websocket.accept()
+    peer_id = str(id(websocket))
+    logger.info(f"🎥 New WebRTC signaling connection: {peer_id}")
+
+    # 피어 등록
+    await signaling_service.register_peer(peer_id, websocket)
+
+    try:
+        while True:
+            # 시그널링 메시지 수신
+            data = await websocket.receive_json()
+            message_type = data.get("type")
+
+            if message_type == "offer":
+                # SDP Offer 처리
+                offer = data.get("offer")
+                answer = await signaling_service.handle_offer(peer_id, offer)
+                if answer:
+                    await websocket.send_json({
+                        "type": "answer",
+                        "answer": answer
+                    })
+
+            elif message_type == "answer":
+                # SDP Answer 처리
+                answer = data.get("answer")
+                await signaling_service.handle_answer(peer_id, answer)
+
+            elif message_type == "ice_candidate":
+                # ICE 후보자 처리
+                candidate = data.get("candidate")
+                await signaling_service.add_ice_candidate(peer_id, candidate)
+
+            elif message_type == "get_peers":
+                # 활성 피어 목록 요청
+                peers = signaling_service.get_active_peers()
+                await websocket.send_json({
+                    "type": "peers",
+                    "peers": list(peers)
+                })
+
+            else:
+                logger.warning(f"Unknown WebRTC message type: {message_type}")
+
+    except WebSocketDisconnect:
+        logger.info(f"🎥 WebRTC signaling disconnected: {peer_id}")
+    except Exception as e:
+        logger.error(f"❌ WebRTC signaling error: {e}", exc_info=True)
+    finally:
+        await signaling_service.unregister_peer(peer_id)
+        logger.info(f"🎥 WebRTC signaling closed: {peer_id}")
 
 
 @app.exception_handler(Exception)
