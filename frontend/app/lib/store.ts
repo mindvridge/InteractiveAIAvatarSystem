@@ -11,6 +11,23 @@ export interface Message {
   timestamp: Date;
 }
 
+export interface User {
+  user_id: string;
+  username: string;
+  joined_at: string;
+  is_speaking: boolean;
+}
+
+export interface Room {
+  room_id: string;
+  room_name: string;
+  max_users: number;
+  user_count: number;
+  users: User[];
+  created_at: string;
+  is_recording: boolean;
+}
+
 interface AppState {
   // WebSocket 연결 상태
   isConnected: boolean;
@@ -48,6 +65,16 @@ interface AppState {
   // 음성 녹음 상태
   isRecording: boolean;
   setRecording: (recording: boolean) => void;
+
+  // 다중 사용자 - Room 상태
+  currentRoom: Room | null;
+  setCurrentRoom: (room: Room | null) => void;
+
+  availableRooms: Room[];
+  setAvailableRooms: (rooms: Room[]) => void;
+
+  currentUser: { user_id: string; username: string } | null;
+  setCurrentUser: (user: { user_id: string; username: string } | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -91,4 +118,14 @@ export const useAppStore = create<AppState>((set) => ({
   // 녹음 상태
   isRecording: false,
   setRecording: (recording) => set({ isRecording: recording }),
+
+  // Room 상태
+  currentRoom: null,
+  setCurrentRoom: (room) => set({ currentRoom: room }),
+
+  availableRooms: [],
+  setAvailableRooms: (rooms) => set({ availableRooms: rooms }),
+
+  currentUser: null,
+  setCurrentUser: (user) => set({ currentUser: user }),
 }));

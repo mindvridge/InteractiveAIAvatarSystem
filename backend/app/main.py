@@ -14,6 +14,7 @@ import asyncio
 from app.websocket.handler import WebSocketHandler
 from app.services.config import get_settings
 from app.services.webrtc_service import signaling_service
+from app.services.room_service import room_service
 
 # 로깅 설정
 logging.basicConfig(
@@ -100,6 +101,59 @@ async def health_check() -> Dict[str, str]:
     return {"status": "healthy"}
 
 
+# Room 관리 API
+@app.get("/rooms")
+async def get_rooms():
+    """
+    모든 대화방 목록 조회
+    """
+    return {
+        "rooms": room_service.get_all_rooms(),
+        "stats": room_service.get_room_stats()
+    }
+
+
+@app.post("/rooms")
+async def create_room(room_name: str, max_users: int = 10):
+    """
+    새로운 대화방 생성
+    """
+    room = room_service.create_room(room_name, max_users)
+    return {"room": room.to_dict()}
+
+
+@app.get("/rooms/{room_id}")
+async def get_room(room_id: str):
+    """
+    특정 대화방 정보 조회
+    """
+    room = room_service.get_room(room_id)
+
+    if not room:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Room not found"}
+        )
+
+    return {"room": room.to_dict()}
+
+
+@app.delete("/rooms/{room_id}")
+async def delete_room(room_id: str):
+    """
+    대화방 삭제
+    """
+    success = room_service.delete_room(room_id)
+
+    if not success:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Room not found"}
+        )
+
+    return {"message": "Room deleted successfully"}
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """
@@ -183,6 +237,118 @@ async def webrtc_signaling_endpoint(websocket: WebSocket):
     finally:
         await signaling_service.unregister_peer(peer_id)
         logger.info(f"🎥 WebRTC signaling closed: {peer_id}")
+
+
+@app.websocket("/rooms/{room_id}/ws")
+async def room_websocket_endpoint(websocket: WebSocket, room_id: str):
+    """
+    Room WebSocket 엔드포인트 - 다중 사용자 지원
+
+    특정 방에 참여하여 실시간 대화
+    """
+    await websocket.accept()
+    user_id = str(id(websocket))
+
+    # 사용자 이름 요청
+    try:
+        init_data = await websocket.receive_json()
+        username = init_data.get("username", f"User_{user_id[:8]}")
+    except:
+        username = f"User_{user_id[:8]}"
+
+    logger.info(f"🏠 User {username} attempting to join room {room_id}")
+
+    # 방에 참여
+    success = await room_service.join_room(room_id, user_id, username, websocket)
+
+    if not success:
+        await websocket.send_json({
+            "type": "error",
+            "data": {"message": "Failed to join room"}
+        })
+        await websocket.close()
+        return
+
+    # 참여 성공 알림
+    room = room_service.get_room(room_id)
+    await websocket.send_json({
+        "type": "room_joined",
+        "data": {"room": room.to_dict() if room else None}
+    })
+
+    try:
+        # 메시지 수신 루프
+        while True:
+            data = await websocket.receive()
+
+            if "text" in data:
+                # 텍스트 메시지 처리
+                message = await asyncio.to_thread(lambda: __import__('json').loads(data["text"]))
+                message_type = message.get("type")
+
+                if message_type == "speaking_status":
+                    # 발화 상태 업데이트
+                    is_speaking = message.get("is_speaking", False)
+                    room_service.set_user_speaking(user_id, is_speaking)
+
+                    # 다른 사용자들에게 브로드캐스트
+                    await room_service.broadcast_to_room(
+                        room_id,
+                        {
+                            "type": "user_speaking",
+                            "data": {
+                                "user_id": user_id,
+                                "username": username,
+                                "is_speaking": is_speaking
+                            }
+                        },
+                        exclude_user=user_id
+                    )
+
+                elif message_type == "chat_message":
+                    # 채팅 메시지 브로드캐스트
+                    await room_service.broadcast_to_room(
+                        room_id,
+                        {
+                            "type": "chat_message",
+                            "data": {
+                                "user_id": user_id,
+                                "username": username,
+                                "message": message.get("message", "")
+                            }
+                        }
+                    )
+
+                # 기존 WebSocket 핸들러로 처리
+                elif message_type in ["text_input", "config", "ping"]:
+                    # 개별 사용자 처리
+                    await ws_handler.handle_text_message(websocket, data["text"])
+
+            elif "bytes" in data:
+                # 오디오 데이터는 개별 처리
+                await ws_handler.handle_audio_message(websocket, data["bytes"])
+
+    except WebSocketDisconnect:
+        logger.info(f"🏠 User {username} disconnected from room {room_id}")
+    except Exception as e:
+        logger.error(f"❌ Room WebSocket error: {e}", exc_info=True)
+    finally:
+        # 방에서 나가기
+        room_service.leave_room(user_id)
+
+        # 다른 사용자들에게 알림
+        await room_service.broadcast_to_room(
+            room_id,
+            {
+                "type": "user_left",
+                "data": {
+                    "user_id": user_id,
+                    "username": username
+                }
+            }
+        )
+
+        logger.info(f"🏠 User {username} left room {room_id}")
 
 
 @app.exception_handler(Exception)

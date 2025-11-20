@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/app/lib/store';
 
-export default function AvatarDisplay() {
+export function AvatarDisplay() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);

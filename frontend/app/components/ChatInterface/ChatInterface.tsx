@@ -12,7 +12,7 @@ interface ChatInterfaceProps {
   onSendMessage: (message: string) => void;
 }
 
-export default function ChatInterface({ onSendMessage }: ChatInterfaceProps) {
+export function ChatInterface({ onSendMessage }: ChatInterfaceProps) {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, isProcessing, currentTranscription } = useAppStore();

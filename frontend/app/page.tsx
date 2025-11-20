@@ -6,9 +6,10 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
-import AvatarDisplay from './components/AvatarDisplay/AvatarDisplay';
-import AudioRecorder from './components/AudioRecorder/AudioRecorder';
-import ChatInterface from './components/ChatInterface/ChatInterface';
+import { AvatarDisplay } from './components/AvatarDisplay/AvatarDisplay';
+import { AudioRecorder } from './components/AudioRecorder/AudioRecorder';
+import { ChatInterface } from './components/ChatInterface/ChatInterface';
+import Link from 'next/link';
 import { WebSocketClient } from './lib/websocket/client';
 import { useAppStore } from './lib/store';
 
@@ -180,16 +181,25 @@ export default function Home() {
           </h1>
           <p className="text-gray-600">실시간 대화형 AI 아바타 프로토타입</p>
 
-          {/* 연결 상태 표시 */}
-          <div className="mt-4 flex items-center justify-center gap-2">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                isConnected ? 'bg-green-500' : 'bg-red-500'
-              }`}
-            ></div>
-            <span className="text-sm text-gray-600">
-              {isConnected ? '서버 연결됨' : '서버 연결 안됨'}
-            </span>
+          {/* 연결 상태 및 네비게이션 */}
+          <div className="mt-4 flex items-center justify-center gap-4">
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  isConnected ? 'bg-green-500' : 'bg-red-500'
+                }`}
+              ></div>
+              <span className="text-sm text-gray-600">
+                {isConnected ? '서버 연결됨' : '서버 연결 안됨'}
+              </span>
+            </div>
+
+            <Link
+              href="/rooms"
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+            >
+              🏠 Room 모드
+            </Link>
           </div>
         </header>
 

@@ -10,10 +10,10 @@ import { useAppStore } from '@/app/lib/store';
 import { AudioRecorder as AudioRecorderUtil } from '@/app/lib/audio-recorder';
 
 interface AudioRecorderProps {
-  onAudioRecorded: (audioBlob: Blob) => void;
+  onAudioRecorded?: (audioBlob: Blob) => void;
 }
 
-export default function AudioRecorder({ onAudioRecorded }: AudioRecorderProps) {
+export function AudioRecorder({ onAudioRecorded }: AudioRecorderProps) {
   const audioRecorderRef = useRef<AudioRecorderUtil | null>(null);
   const { isRecording, setRecording, isProcessing } = useAppStore();
 
@@ -24,7 +24,9 @@ export default function AudioRecorder({ onAudioRecorded }: AudioRecorderProps) {
         try {
           const audioBlob = await audioRecorderRef.current.stopRecording();
           setRecording(false);
-          onAudioRecorded(audioBlob);
+          if (onAudioRecorded) {
+            onAudioRecorded(audioBlob);
+          }
         } catch (error) {
           console.error('Failed to stop recording:', error);
           setRecording(false);
