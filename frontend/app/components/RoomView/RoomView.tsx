@@ -5,12 +5,13 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/app/lib/store';
 import { useRoomWebSocket } from '@/app/lib/websocket/room-websocket';
 import { AudioRecorder } from '../AudioRecorder/AudioRecorder';
 import { AvatarDisplay } from '../AvatarDisplay/AvatarDisplay';
 import { ChatInterface } from '../ChatInterface/ChatInterface';
+import { RecordingControls } from '../RecordingControls/RecordingControls';
 
 interface RoomViewProps {
   roomId: string;
@@ -19,13 +20,33 @@ interface RoomViewProps {
 }
 
 export function RoomView({ roomId, username, onLeaveRoom }: RoomViewProps) {
-  const { currentRoom, isRecording } = useAppStore();
+  const { currentRoom, isRecording, setCurrentRoom } = useAppStore();
+  const [isRoomRecording, setIsRoomRecording] = useState(false);
 
   const {
     sendSpeakingStatus,
     sendChatMessage,
     isConnected,
   } = useRoomWebSocket(roomId, username);
+
+  /**
+   * Room 녹화 상태 업데이트
+   */
+  const handleRecordingStateChange = (recording: boolean) => {
+    setIsRoomRecording(recording);
+    if (currentRoom) {
+      setCurrentRoom({ ...currentRoom, is_recording: recording });
+    }
+  };
+
+  /**
+   * 초기 녹화 상태 설정
+   */
+  useEffect(() => {
+    if (currentRoom) {
+      setIsRoomRecording(currentRoom.is_recording);
+    }
+  }, [currentRoom]);
 
   /**
    * 녹음 상태 변경 시 발화 상태 전송
@@ -58,12 +79,22 @@ export function RoomView({ roomId, username, onLeaveRoom }: RoomViewProps) {
               👤 {username}
             </p>
           </div>
-          <button
-            onClick={onLeaveRoom}
-            className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-          >
-            Leave Room
-          </button>
+
+          <div className="flex items-center gap-3">
+            {/* Recording Controls */}
+            <RecordingControls
+              roomId={roomId}
+              isRecording={isRoomRecording}
+              onRecordingStateChange={handleRecordingStateChange}
+            />
+
+            <button
+              onClick={onLeaveRoom}
+              className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+            >
+              Leave Room
+            </button>
+          </div>
         </div>
       </div>
 

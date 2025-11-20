@@ -5,7 +5,7 @@ FastAPI 메인 애플리케이션
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from contextlib import asynccontextmanager
 import logging
 from typing import Dict, Any
@@ -15,6 +15,7 @@ from app.websocket.handler import WebSocketHandler
 from app.services.config import get_settings
 from app.services.webrtc_service import signaling_service
 from app.services.room_service import room_service
+from app.services.recording_service import recording_service
 
 # 로깅 설정
 logging.basicConfig(
@@ -79,16 +80,17 @@ async def root() -> Dict[str, Any]:
     """
     return {
         "message": "Interactive AI Avatar System API",
-        "version": "0.3.0",  # Phase 3
+        "version": "0.4.0",  # 녹화 기능 추가
         "status": "running",
-        "phase": "3",
-        "features": ["WebSocket", "WebRTC", "Lipsync"],
+        "phase": "3+",
+        "features": ["WebSocket", "WebRTC", "Lipsync", "Multi-user", "Recording"],
         "services": {
             "stt": ws_handler.stt_service is not None,
             "tts": ws_handler.tts_service is not None,
             "llm": ws_handler.llm_service is not None,
             "wav2lip": ws_handler.wav2lip_service is not None,
             "webrtc": True,  # Phase 3
+            "recording": True,  # 녹화 기능
         }
     }
 
@@ -152,6 +154,145 @@ async def delete_room(room_id: str):
         )
 
     return {"message": "Room deleted successfully"}
+
+
+# 녹화 관리 API
+@app.post("/rooms/{room_id}/recording/start")
+async def start_recording(room_id: str):
+    """
+    Room 녹화 시작
+    """
+    room = room_service.get_room(room_id)
+    if not room:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Room not found"}
+        )
+
+    if recording_service.is_recording(room_id):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Recording already in progress"}
+        )
+
+    # 녹화 시작
+    participants = [user.username for user in room.users.values()]
+    metadata = recording_service.start_recording(room_id, room.room_name, participants)
+
+    # Room 상태 업데이트
+    room.is_recording = True
+
+    # 모든 사용자에게 녹화 시작 알림
+    await room_service.broadcast_to_room(
+        room_id,
+        {
+            "type": "recording_started",
+            "data": {"recording_id": metadata.recording_id}
+        }
+    )
+
+    return {"metadata": metadata.to_dict()}
+
+
+@app.post("/rooms/{room_id}/recording/stop")
+async def stop_recording(room_id: str):
+    """
+    Room 녹화 중지
+    """
+    room = room_service.get_room(room_id)
+    if not room:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Room not found"}
+        )
+
+    if not recording_service.is_recording(room_id):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "No active recording"}
+        )
+
+    # 녹화 중지
+    metadata = await recording_service.stop_recording(room_id)
+
+    # Room 상태 업데이트
+    room.is_recording = False
+
+    # 모든 사용자에게 녹화 중지 알림
+    if metadata:
+        await room_service.broadcast_to_room(
+            room_id,
+            {
+                "type": "recording_stopped",
+                "data": {"recording_id": metadata.recording_id}
+            }
+        )
+
+    return {"metadata": metadata.to_dict() if metadata else None}
+
+
+@app.get("/recordings")
+async def get_recordings(room_id: str = None):
+    """
+    녹화 목록 조회
+    """
+    recordings = recording_service.list_recordings(room_id)
+    return {
+        "recordings": [r.to_dict() for r in recordings],
+        "count": len(recordings)
+    }
+
+
+@app.get("/recordings/{recording_id}")
+async def get_recording(recording_id: str):
+    """
+    녹화 메타데이터 조회
+    """
+    metadata = recording_service.get_recording_metadata(recording_id)
+
+    if not metadata:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Recording not found"}
+        )
+
+    return {"metadata": metadata.to_dict()}
+
+
+@app.get("/recordings/{recording_id}/download")
+async def download_recording(recording_id: str):
+    """
+    녹화 파일 다운로드
+    """
+    metadata = recording_service.get_recording_metadata(recording_id)
+
+    if not metadata or not metadata.file_path:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Recording file not found"}
+        )
+
+    return FileResponse(
+        path=metadata.file_path,
+        filename=f"{recording_id}.txt",
+        media_type="text/plain"
+    )
+
+
+@app.delete("/recordings/{recording_id}")
+async def delete_recording(recording_id: str):
+    """
+    녹화 삭제
+    """
+    success = await recording_service.delete_recording(recording_id)
+
+    if not success:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Recording not found"}
+        )
+
+    return {"message": "Recording deleted successfully"}
 
 
 @app.websocket("/ws")
@@ -307,6 +448,7 @@ async def room_websocket_endpoint(websocket: WebSocket, room_id: str):
 
                 elif message_type == "chat_message":
                     # 채팅 메시지 브로드캐스트
+                    chat_text = message.get("message", "")
                     await room_service.broadcast_to_room(
                         room_id,
                         {
@@ -314,10 +456,16 @@ async def room_websocket_endpoint(websocket: WebSocket, room_id: str):
                             "data": {
                                 "user_id": user_id,
                                 "username": username,
-                                "message": message.get("message", "")
+                                "message": chat_text
                             }
                         }
                     )
+
+                    # 녹화 중이면 대화 내용 저장
+                    if recording_service.is_recording(room_id):
+                        recording_service.add_transcript_entry(
+                            room_id, user_id, username, chat_text
+                        )
 
                 # 기존 WebSocket 핸들러로 처리
                 elif message_type in ["text_input", "config", "ping"]:

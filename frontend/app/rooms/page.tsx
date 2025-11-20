@@ -37,12 +37,19 @@ export default function RoomsPage() {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       {!currentRoom && (
-        <div className="p-4">
+        <div className="p-4 flex items-center justify-between">
           <Link
             href="/"
             className="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
           >
             ← 단일 사용자 모드
+          </Link>
+
+          <Link
+            href="/recordings"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            📹 View Recordings
           </Link>
         </div>
       )}

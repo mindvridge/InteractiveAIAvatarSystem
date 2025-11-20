@@ -84,6 +84,26 @@ export function useRoomWebSocket(roomId: string | null, username: string) {
           });
           break;
 
+        case 'recording_started':
+          // 녹화 시작 알림
+          console.log('🔴 Recording started:', message.data?.recording_id);
+          addMessage({
+            role: 'assistant',
+            content: '🔴 녹화가 시작되었습니다.',
+            timestamp: new Date(),
+          });
+          break;
+
+        case 'recording_stopped':
+          // 녹화 중지 알림
+          console.log('⏹ Recording stopped:', message.data?.recording_id);
+          addMessage({
+            role: 'assistant',
+            content: '⏹ 녹화가 중지되었습니다.',
+            timestamp: new Date(),
+          });
+          break;
+
         case 'error':
           // 에러 처리
           setError(message.data?.message || 'Unknown error');
