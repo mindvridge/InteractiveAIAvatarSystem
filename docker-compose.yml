@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: avatar-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./models:/app/models
+      - backend-cache:/root/.cache
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=true
+      - DEVICE=cpu
+      - WHISPER_MODEL=base
+      - USE_OPENAI_LLM=false
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+    networks:
+      - avatar-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: avatar-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws
+      - NODE_ENV=development
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - avatar-network
+
+  # Ollama Service (선택사항 - 로컬 LLM)
+  # 주석 해제하여 사용
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: avatar-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama-data:/root/.ollama
+  #   restart: unless-stopped
+  #   networks:
+  #     - avatar-network
+
+networks:
+  avatar-network:
+    driver: bridge
+
+volumes:
+  backend-cache:
+  # ollama-data:
